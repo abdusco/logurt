@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gopkg.in/olahol/melody.v1"
@@ -30,7 +31,9 @@ func main() {
 
 	signingKey := os.Getenv("JWT_SIGNING_KEY")
 	if signingKey == "" {
-		log.Fatal("JWT_SIGNING_KEY is not set")
+		// this key will change on every restart
+		signingKey = uuid.NewString()
+		log.Printf("JWT_SIGNING_KEY is not set. This will change on every restart and invalidate all previous tokens")
 	}
 
 	e := echo.New()
