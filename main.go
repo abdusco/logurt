@@ -46,7 +46,7 @@ func main() {
 
 	m := melody.New()
 	m.HandleClose(func(s *melody.Session, _ int, _ string) error {
-		log.Printf("Session %s closed", s.Request.URL.RawQuery)
+		log.Printf("Session %+v closed", s.Keys)
 		return nil
 	})
 
@@ -78,6 +78,7 @@ func main() {
 
 	e.POST("/", func(c echo.Context) error {
 		var logs []logMessage
+		// TODO: migrate to msgpack
 		err := c.Bind(&logs)
 		if err != nil {
 			return err
@@ -85,7 +86,23 @@ func main() {
 
 		for _, it := range logs {
 			err := m.BroadcastFilter([]byte(it.Log), func(session *melody.Session) bool {
-				return session.Request.URL.Query().Get("namespace") == it.Kubernetes.NamespaceName
+				namespace := session.Keys["namespace"].(string)
+				pod := session.Keys["pod"].(string)
+				container := session.Keys["container"].(string)
+
+				if container != "" && it.Kubernetes.ContainerName != container {
+					return false
+				}
+
+				if pod != "" && it.Kubernetes.PodName != pod {
+					return false
+				}
+
+				if namespace != "" && it.Kubernetes.NamespaceName != namespace {
+					return false
+				}
+
+				return true
 			})
 			if err != nil {
 				log.Printf("Error while broadcasting: %+v", err)
@@ -95,11 +112,35 @@ func main() {
 			log.Printf("%s.%s.%s: %s", it.Kubernetes.NamespaceName, it.Kubernetes.PodName, it.Kubernetes.ContainerName, it.Log)
 		}
 
-		return c.String(200, "OK")
+		return c.String(http.StatusOK, "OK")
 	})
-	e.GET("/logs", func(c echo.Context) error {
-		return m.HandleRequest(c.Response(), c.Request())
+
+	e.GET("/logs/ws", func(c echo.Context) error {
+		namespace := c.QueryParam("namespace")
+		pod := c.QueryParam("pod")
+		container := c.QueryParam("container")
+
+		if namespace == "" {
+			return badParam(c, "namespace", "namespace is required")
+		}
+
+		if container != "" && pod == "" {
+			return badParam(c, "pod", "pod is required when container is specified")
+		}
+
+		return m.HandleRequestWithKeys(c.Response(), c.Request(), map[string]interface{}{
+			"namespace": namespace,
+			"pod":       pod,
+			"container": container,
+		})
 	})
 
 	log.Fatal(e.Start(":" + port))
+}
+
+func badParam(c echo.Context, param string, message string) error {
+	return c.JSON(http.StatusBadRequest, map[string]string{
+		"error": message,
+		"param": param,
+	})
 }
