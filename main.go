@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gopkg.in/olahol/melody.v1"
 	"log"
+	"net/http"
+	"os"
 )
 
 type logMessage struct {
@@ -20,18 +23,49 @@ type logMessage struct {
 }
 
 func main() {
+	signingKey := os.Getenv("JWT_SIGNING_KEY")
+	if signingKey == "" {
+		log.Fatal("JWT_SIGNING_KEY is not set")
+	}
+
 	e := echo.New()
+	e.HideBanner = true
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		log.Printf("%+v", err)
 	}
-	e.HideBanner = true
 
 	m := melody.New()
 	m.HandleClose(func(s *melody.Session, _ int, _ string) error {
 		log.Printf("Session %s closed", s.Request.URL.RawQuery)
 		return nil
+	})
+
+	e.POST("/sign", func(c echo.Context) error {
+		type signRequest struct {
+			Namespace string `json:"namespace"`
+			Pod       string `json:"pod"`
+			Container string `json:"container"`
+		}
+		req := new(signRequest)
+		if err := c.Bind(req); err != nil {
+			return err
+		}
+
+		signer := jwt.NewWithClaims(jwt.SigningMethodHS256, LogRequestClaims{
+			Namespace: req.Namespace,
+			Pod:       req.Pod,
+			Container: req.Container,
+		})
+		token, err := signer.SignedString([]byte(signingKey))
+		if err != nil {
+			return err
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"token": token,
+		})
 	})
 
 	e.POST("/", func(c echo.Context) error {
