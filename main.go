@@ -1,14 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"github.com/golang-jwt/jwt"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gopkg.in/olahol/melody.v1"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
+	"time"
 )
 
 type logMessage struct {
@@ -23,6 +25,13 @@ type logMessage struct {
 	} `json:"kubernetes"`
 }
 
+func randomString(length int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, length*2)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)[2 : length+2]
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -32,8 +41,9 @@ func main() {
 	signingKey := os.Getenv("JWT_SIGNING_KEY")
 	if signingKey == "" {
 		// this key will change on every restart
-		signingKey = uuid.NewString()
-		log.Printf("JWT_SIGNING_KEY is not set. This will change on every restart and invalidate all previous tokens")
+		signingKey = randomString(64)
+		log.Printf("JWT_SIGNING_KEY is not set, using random key: %s", signingKey)
+		log.Printf("This will change on every restart and invalidate all previous tokens")
 	}
 
 	e := echo.New()
