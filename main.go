@@ -23,6 +23,11 @@ type logMessage struct {
 }
 
 func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	signingKey := os.Getenv("JWT_SIGNING_KEY")
 	if signingKey == "" {
 		log.Fatal("JWT_SIGNING_KEY is not set")
@@ -93,5 +98,5 @@ func main() {
 		return m.HandleRequest(c.Response(), c.Request())
 	})
 
-	log.Fatal(e.Start(":8080"))
+	log.Fatal(e.Start(":" + port))
 }
