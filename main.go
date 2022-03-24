@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gopkg.in/olahol/melody.v1"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
+	"strings"
 )
 
 type logMessage struct {
@@ -25,13 +23,6 @@ type logMessage struct {
 	} `json:"kubernetes"`
 }
 
-func randomString(length int) string {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, length*2)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)[2 : length+2]
-}
-
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -39,20 +30,39 @@ func main() {
 	}
 
 	signingKey := os.Getenv("JWT_SIGNING_KEY")
-	if signingKey == "" {
-		// this key will change on every restart
-		signingKey = randomString(64)
-		log.Printf("JWT_SIGNING_KEY is not set, using random key: %s", signingKey)
-		log.Printf("This will change on every restart and invalidate all previous tokens")
-	}
+	ingestionKey := os.Getenv("LOG_INGESTION_KEY")
 
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.Recover())
-	e.Use(middleware.Logger())
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		log.Printf("%+v", err)
 	}
+	e.Use(middleware.Recover())
+	e.Use(middleware.Logger())
+
+	if signingKey != "" {
+		e.Use(middleware.JWTWithConfig(middleware.JWTConfig{
+			SigningKey:  []byte(signingKey),
+			TokenLookup: "header:Authorization:Bearer ,query:token",
+			Skipper: func(c echo.Context) bool {
+				return !strings.HasPrefix(c.Path(), "/logs")
+			},
+		}))
+	} else {
+		log.Printf("JWT_SIGNING_KEY is not set, disabling authentication")
+	}
+
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if c.Path() == "/logs" {
+				return next(c)
+			}
+			if c.Request().Header.Get("Secret") != ingestionKey {
+				return c.String(http.StatusUnauthorized, "Secret header is not set or invalid")
+			}
+			return next(c)
+		}
+	})
 
 	m := melody.New()
 	m.HandleClose(func(s *melody.Session, _ int, _ string) error {
@@ -60,33 +70,44 @@ func main() {
 		return nil
 	})
 
-	e.POST("/sign", func(c echo.Context) error {
-		type signRequest struct {
-			Namespace string `json:"namespace"`
-			Pod       string `json:"pod"`
-			Container string `json:"container"`
-		}
-		req := new(signRequest)
-		if err := c.Bind(req); err != nil {
-			return err
+	e.POST("/sign", handleSign(signingKey, func(c echo.Context, token string) string {
+		u := c.Request().URL
+		u.Path = "/logs"
+		u.RawQuery = "token=" + token
+		return u.String()
+	}))
+	e.POST("/", handleIngest(m))
+	e.GET("/logs/ws", handleLogStream(m)).Name = "logs"
+
+	log.Printf("Listening on port %s", port)
+	log.Fatal(e.Start(":" + port))
+}
+
+func handleLogStream(m *melody.Melody) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		namespace := c.QueryParam("namespace")
+		pod := c.QueryParam("pod")
+		container := c.QueryParam("container")
+
+		if namespace == "" {
+			return badParam(c, "namespace", "namespace is required")
 		}
 
-		signer := jwt.NewWithClaims(jwt.SigningMethodHS256, LogRequestClaims{
-			Namespace: req.Namespace,
-			Pod:       req.Pod,
-			Container: req.Container,
+		if container != "" && pod == "" {
+			return badParam(c, "pod", "pod is required when container is specified")
+		}
+
+		return m.HandleRequestWithKeys(c.Response(), c.Request(), map[string]interface{}{
+			"namespace": namespace,
+			"pod":       pod,
+			"container": container,
 		})
-		token, err := signer.SignedString([]byte(signingKey))
-		if err != nil {
-			return err
-		}
+	}
+}
 
-		return c.JSON(http.StatusOK, map[string]string{
-			"token": token,
-		})
-	})
-
-	e.POST("/", func(c echo.Context) error {
+func handleIngest(m *melody.Melody) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		// TODO: add shared secret authentication
 		var logs []logMessage
 		// TODO: migrate to msgpack
 		err := c.Bind(&logs)
@@ -123,29 +144,43 @@ func main() {
 		}
 
 		return c.String(http.StatusOK, "OK")
-	})
+	}
+}
 
-	e.GET("/logs/ws", func(c echo.Context) error {
-		namespace := c.QueryParam("namespace")
-		pod := c.QueryParam("pod")
-		container := c.QueryParam("container")
+type SignedUrlGenerator func(c echo.Context, token string) string
 
-		if namespace == "" {
-			return badParam(c, "namespace", "namespace is required")
+func handleSign(signingKey string, generator SignedUrlGenerator) echo.HandlerFunc {
+	type signRequest struct {
+		Namespace string `json:"namespace"`
+		Pod       string `json:"pod"`
+		Container string `json:"container"`
+	}
+	type signResponse struct {
+		Url string `json:"url"`
+	}
+
+	return func(c echo.Context) error {
+		req := new(signRequest)
+		if err := c.Bind(req); err != nil {
+			return err
 		}
 
-		if container != "" && pod == "" {
-			return badParam(c, "pod", "pod is required when container is specified")
-		}
-
-		return m.HandleRequestWithKeys(c.Response(), c.Request(), map[string]interface{}{
-			"namespace": namespace,
-			"pod":       pod,
-			"container": container,
+		signer := jwt.NewWithClaims(jwt.SigningMethodHS256, LogRequestClaims{
+			Namespace: req.Namespace,
+			Pod:       req.Pod,
+			Container: req.Container,
 		})
-	})
+		token, err := signer.SignedString([]byte(signingKey))
+		if err != nil {
+			return err
+		}
 
-	log.Fatal(e.Start(":" + port))
+		signedUrl := generator(c, token)
+
+		return c.JSON(http.StatusOK, signResponse{
+			Url: signedUrl,
+		})
+	}
 }
 
 func badParam(c echo.Context, param string, message string) error {
