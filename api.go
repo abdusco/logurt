@@ -65,7 +65,7 @@ func NewApp(config AppConfig) *App {
 		},
 		func(c echo.Context, token string) (string, error) {
 			u := c.Request().URL
-			u.Path = "/logs"
+			u.Path = "/logs/ws"
 			u.RawQuery = "token=" + token
 			return u.String(), nil
 		}),
