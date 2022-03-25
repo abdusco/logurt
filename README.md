@@ -18,6 +18,7 @@ logurt is configured using environment variables.
 
 ### Request signing
 
+Available at `/api/sign`.  
 Signs a log request and returns a JWT token that is valid for the next `JWT_EXPIRATION_MINUTES` minutes.
 
 ```http request
@@ -46,6 +47,7 @@ or in the query string as `?token=eyj...` when connecting to Websocket endpoint.
 
 ### Log endpoint
 
+Available at `/logs/ws`.  
 This endpoint is used to serve logs over Websocket.
 Requires a valid JWT token in the `Authorization` header or query string.
 
@@ -61,6 +63,7 @@ This will return the logs in the plaintext format.
 
 ### Log ingestion endpoint
 
+Available at `/_ingest/fluentbit`.    
 This endpoint is used for ingesting logs as JSON. It is meant to be used by Fluentbit.
 
 Requires a valid token in the `Authorization` header as `Authorization: Token ingestion_key_here`
@@ -118,6 +121,7 @@ Fluentbit needs to be configured to ingest Kubernetes logs, and to use the `http
     Name  http
     Match  kube.*
     Host  logurt.logging.svc.cluster.local
+    URI   /_ingest/fluentbit
     Port  8080
     Format  json
     Json_date_key  timestamp
