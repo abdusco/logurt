@@ -5,7 +5,6 @@ WORKDIR /app
 COPY . .
 RUN go mod download
 RUN go build -o logurt
-RUN chmod +x /app/logurt
 
 FROM scratch
 COPY --from=builder /app/logurt /app/logurt
