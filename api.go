@@ -14,7 +14,6 @@ import (
 type AppConfig struct {
 	Port               int
 	ApiSecret          string
-	LogIngestionKey    string
 	JwtSigningKey      string
 	JwtLifetimeMinutes int
 }
@@ -44,13 +43,16 @@ func NewApp(config AppConfig) *App {
 		return nil
 	})
 
-	api := e.Group("/api")
-	api.Use(middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
+	authMiddleware := middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
+		KeyLookup:  "header:Authorization",
 		AuthScheme: "Token",
-		Validator: func(token string, c echo.Context) (bool, error) {
-			return token == config.ApiSecret, nil
+		Validator: func(auth string, c echo.Context) (bool, error) {
+			return auth == config.ApiSecret, nil
 		},
-	}))
+	})
+
+	api := e.Group("/api")
+	api.Use(authMiddleware)
 	api.POST("/sign", handleSign(
 		signRequestValidator,
 		func(req LogRequest) (string, error) {
@@ -72,14 +74,7 @@ func NewApp(config AppConfig) *App {
 	)
 
 	ingest := e.Group("/_ingest")
-	if config.LogIngestionKey != "" {
-		ingest.Use(middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
-			AuthScheme: "Token",
-			Validator: func(auth string, c echo.Context) (bool, error) {
-				return auth == config.LogIngestionKey, nil
-			},
-		}))
-	}
+	ingest.Use(authMiddleware)
 	ingest.POST("/fluentbit", handleIngestFluentbit(
 		func(message *fluentbitLogMessage) error {
 			filter := logFilterFactory(message)

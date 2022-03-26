@@ -8,9 +8,9 @@ It is designed to be used in a Kubernetes cluster in tandem with Fluentbit / Flu
 logurt is configured using environment variables.
 
 - `API_SECRET`: The secret to communicate with the API. This needs to be shared with the applications that call the API.
-- `JWT_SIGNING_KEY`: The secret to use for signing JWT tokens. This needs to be sufficiently long and random.
-- `LOG_INGESTION_KEY`: The key to use for protecting log ingestion endpoints. This needs to be set in Fluentbit
+  It's also used for protecting log ingestion endpoints. This needs to be set in Fluentbit
   configuration as a header.
+- `JWT_SIGNING_KEY`: The secret to use for signing JWT tokens. This needs to be sufficiently long and random.
 - `JWT_EXPIRATION_MINUTES`: The number of minutes to set the JWT token expiration to. Defaults to `60`.
 - `PORT`: The port to listen on. Defaults to `8080`.
 
@@ -20,6 +20,7 @@ logurt is configured using environment variables.
 
 Available at `/api/sign`.  
 Signs a log request and returns a JWT token that is valid for the next `JWT_EXPIRATION_MINUTES` minutes.
+Requires API secret passed in the `Token` header.
 
 ```http request
 POST /api/sign
@@ -54,6 +55,7 @@ Requires a valid JWT token in the `Authorization` header or query string.
 ```
 GET https://mylogurt.com/logs/ws?token=eyj...
 ```
+
 ```
 GET https://mylogurt.com/logs/ws
 Authorization: Bearer eyj...
@@ -66,7 +68,7 @@ This will return the logs in the plaintext format.
 Available at `/_ingest/fluentbit`.    
 This endpoint is used for ingesting logs as JSON. It is meant to be used by Fluentbit.
 
-Requires a valid token in the `Authorization` header as `Authorization: Token ingestion_key_here`
+Requires a valid token in the `Authorization` header as `Authorization: Token api_key_here`
 
 Expects the log payloads to be in the following JSON format:
 
@@ -92,7 +94,6 @@ docker run -it --rm 8080:8080 \
   -e PORT=8081 \
   -e API_SECRET=secret \
   -e JWT_SIGNING_KEY=1234567890qwertyuiopasdfghjklzxcvbnm \
-  -e LOG_INGESTION_KEY=log \
   abdusco/logurt
 ```
 
@@ -126,7 +127,7 @@ Fluentbit needs to be configured to ingest Kubernetes logs, and to use the `http
     Format  json
     Json_date_key  timestamp
     Json_date_format  iso8601
-    Header  Authorization Token $key  # this is the ingestion key passed to logurt
+    Header  Authorization "Token api_key_here"  # this is the api key passed to logurt
 ```
 
 ## Kubernetes spec
