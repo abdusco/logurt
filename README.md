@@ -132,8 +132,7 @@ Fluentbit needs to be configured to ingest Kubernetes logs, and to use the `http
 
 ## Kubernetes spec
 
-Below is a minimal example of a Kubernetes deployment. Apply it using `kubectl`, `helm`, `terraform` or any other viable
-tool.
+Below is a minimal example of a Kubernetes deployment. Apply it using `kubectl`.
 
 ```yaml
 apiVersion: v1
