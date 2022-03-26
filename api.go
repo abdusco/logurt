@@ -190,6 +190,17 @@ type signResponse struct {
 	SignedUrl string `json:"url"`
 }
 
+type LogRequest struct {
+	Namespace string `json:"namespace"`
+	Pod       string `json:"pod"`
+	Container string `json:"container"`
+}
+
+type LogRequestClaims struct {
+	jwt.StandardClaims
+	LogRequest
+}
+
 func signRequestValidator(req *signRequest) error {
 	if req.Namespace == "" {
 		return fmt.Errorf("namespace is required")
