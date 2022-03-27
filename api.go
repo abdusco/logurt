@@ -67,7 +67,7 @@ func NewApp(config AppConfig) *App {
 		},
 		func(c echo.Context, token string) (string, error) {
 			u := c.Request().URL
-			u.Path = "/logs/ws"
+			u.Path = "/logs"
 			u.RawQuery = "token=" + token
 			return u.String(), nil
 		}),
@@ -91,7 +91,7 @@ func NewApp(config AppConfig) *App {
 		ContextKey:  logRequestClaimsKey,
 		Claims:      &LogRequestClaims{},
 	}))
-	public.GET("/logs/ws", handleLogStream(m))
+	public.GET("/logs", handleLogStream(m))
 
 	return &App{
 		config: config,
