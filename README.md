@@ -1,7 +1,7 @@
 # logurt
 
 **logurt** is a simple application that ingests logs and serves them in real time over Websocket.
-It is designed to be used in a Kubernetes cluster in tandem with Fluentbit / Fluentd.
+It is designed to be used in a Kubernetes cluster in tandem with Fluentbit.
 
 ## Configuration
 
@@ -102,7 +102,7 @@ docker run -it --rm 8080:8080 \
 
 ## Kubernetes deployment
 
-To deploy logurt to a Kubernetes cluster, you need to have a working Fluentbit/Fluentd setup, deployed as a `DaemonSet`.
+To deploy logurt to a Kubernetes cluster, you need to have a working Fluentbit setup, deployed as a `DaemonSet`.
 
 ### Fluentbit configuration
 
