@@ -31,6 +31,9 @@ Authorization: Token api_secret_here
   "namespace": "myapp", // required
   "pod": "mypod",  // optional
   "container": "mycontainer"  // optional
+  "labels": {  // optional
+    "app": "my-app"
+  }
 }
 ```
 
@@ -39,7 +42,7 @@ returns
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NDgyMDAxNTUsIm5hbWVzcGFjZSI6Im5zIiwicG9kIjoid2ViIiwiY29udGFpbmVyIjoiIn0.-NNQN-zs_vYttHYcMtjecv7id-JHs1fZ6cWr0vj_Zso",
-  "url": "/logs/ws?token=eyj..."
+  "url": "/logs?token=eyj..."
 }
 ```
 
@@ -48,16 +51,16 @@ or in the query string as `?token=eyj...` when connecting to Websocket endpoint.
 
 ### Log endpoint
 
-Available at `/logs/ws`.  
+Available at `/logs`.  
 This endpoint is used to serve logs over Websocket.
 Requires a valid JWT token in the `Authorization` header or query string.
 
 ```
-GET https://mylogurt.com/logs/ws?token=eyj...
+GET wss://mylogurt.com/logs?token=eyj...
 ```
 
 ```
-GET https://mylogurt.com/logs/ws
+GET wss://mylogurt.com/logs
 Authorization: Bearer eyj...
 ```
 
@@ -127,7 +130,7 @@ Fluentbit needs to be configured to ingest Kubernetes logs, and to use the `http
     Format  json
     Json_date_key  timestamp
     Json_date_format  iso8601
-    Header  Authorization "Token api_key_here"  # this is the api key passed to logurt
+    Header  Authorization Token api_key_here  # this is the api key passed to logurt
 ```
 
 ## Kubernetes spec
@@ -179,5 +182,4 @@ stringData:
   # generate secure random strings using `openssl rand -hex 32`
   API_SECRET: api-secret-here
   JWT_SIGNING_KEY: jwt-signing-secret-here
-  LOG_INGESTION_KEY: log-ingestion-key-here
 ```
