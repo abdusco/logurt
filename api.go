@@ -188,9 +188,10 @@ type SignedUrlBuilder func(c echo.Context, token string) (string, error)
 type JwtSigner func(req LogRequest) (string, error)
 
 type signRequest struct {
-	Namespace string `json:"namespace"`
-	Pod       string `json:"pod"`
-	Container string `json:"container"`
+	Namespace string            `json:"namespace"`
+	Pod       string            `json:"pod"`
+	Container string            `json:"container"`
+	Labels    map[string]string `json:"labels"`
 }
 type signResponse struct {
 	Token     string `json:"token"`
@@ -198,10 +199,10 @@ type signResponse struct {
 }
 
 type LogRequest struct {
-	Namespace string            `json:"ns"`
-	Pod       string            `json:"pod"`
-	Container string            `json:"ctn"`
-	Labels    map[string]string `json:"lbl"`
+	Namespace string            `json:"n,omitempty"`
+	Pod       string            `json:"p,omitempty"`
+	Container string            `json:"c,omitempty"`
+	Labels    map[string]string `json:"l,omitempty"`
 }
 
 type LogRequestClaims struct {
@@ -234,6 +235,7 @@ func handleSign(validator SignRequestValidator, signJwt JwtSigner, buildUrl Sign
 			Namespace: req.Namespace,
 			Pod:       req.Pod,
 			Container: req.Container,
+			Labels:    req.Labels,
 		})
 		if err != nil {
 			return err
