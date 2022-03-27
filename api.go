@@ -118,16 +118,23 @@ func logFilterFactory(message *fluentbitLogMessage) func(s *melody.Session) bool
 	return func(session *melody.Session) bool {
 		req := session.Keys["req"].(LogRequest)
 
-		if req.Namespace != message.Kubernetes.NamespaceName {
+		if req.Namespace != message.Kubernetes.Namespace {
 			return false
 		}
 
-		if req.Pod != "" && message.Kubernetes.PodName != req.Pod {
+		if req.Pod != "" && req.Pod != message.Kubernetes.Pod {
 			return false
 		}
 
-		if req.Container != "" && message.Kubernetes.ContainerName != req.Container {
+		if req.Container != "" && message.Kubernetes.Container != req.Container {
 			return false
+		}
+
+		for k, requestedVal := range req.Labels {
+			messageVal, ok := message.Kubernetes.Labels[k]
+			if !ok || requestedVal != messageVal {
+				return false
+			}
 		}
 
 		return true
@@ -138,10 +145,10 @@ type fluentbitLogMessage struct {
 	Timestamp  string `json:"timestamp"`
 	Log        string `json:"log"`
 	Kubernetes struct {
-		PodName        string            `json:"pod_name"`
-		NamespaceName  string            `json:"namespace_name"`
+		Pod            string            `json:"pod_name"`
+		Namespace      string            `json:"namespace_name"`
 		Labels         map[string]string `json:"labels"`
-		ContainerName  string            `json:"container_name"`
+		Container      string            `json:"container_name"`
 		ContainerImage string            `json:"container_image"`
 	} `json:"kubernetes"`
 }
@@ -164,7 +171,7 @@ func handleIngestFluentbit(dispatch LogDispatcher) echo.HandlerFunc {
 				continue
 			}
 
-			log.Printf("%s.%s.%s: %s", it.Kubernetes.NamespaceName, it.Kubernetes.PodName, it.Kubernetes.ContainerName, it.Log)
+			log.Printf("%s.%s.%s: %s", it.Kubernetes.Namespace, it.Kubernetes.Pod, it.Kubernetes.Container, it.Log)
 		}
 
 		return c.String(http.StatusOK, "OK")
@@ -191,9 +198,10 @@ type signResponse struct {
 }
 
 type LogRequest struct {
-	Namespace string `json:"namespace"`
-	Pod       string `json:"pod"`
-	Container string `json:"container"`
+	Namespace string            `json:"ns"`
+	Pod       string            `json:"pod"`
+	Container string            `json:"ctn"`
+	Labels    map[string]string `json:"lbl"`
 }
 
 type LogRequestClaims struct {
