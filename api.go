@@ -106,7 +106,8 @@ const (
 
 func handleLogStream(m *melody.Melody) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := c.Get(logRequestClaimsKey).(*LogRequestClaims)
+		token := c.Get(logRequestClaimsKey).(*jwt.Token)
+		req := token.Claims.(*LogRequestClaims)
 
 		return m.HandleRequestWithKeys(c.Response(), c.Request(), map[string]interface{}{
 			"req": req.LogRequest,
